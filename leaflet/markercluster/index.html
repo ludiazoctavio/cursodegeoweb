@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Markercluster - Leaflet</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/MarkerCluster.css" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/MarkerCluster.Default.css" />
+	<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/leaflet.markercluster.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+
+	<style>
+	html, body {
+		height: 100%;
+		margin: 0;
+		}
+	#map { 
+		width: 100%; 
+		height: 100%; 
+		}
+	.info { 
+		padding: 6px 8px; 
+		font: 14px/16px Arial, Helvetica, sans-serif; 
+		background: white; 
+		background: rgba(255,255,255,0.8); 
+		box-shadow: 0 0 15px rgba(0,0,0,0.2); 
+		border-radius: 5px; 
+		} 
+	.info h4 { 
+		margin: 0 0 5px; 
+		color: #777; 
+		}
+	.leaflet-popup-content img {
+		display: block;
+		margin-left: auto;
+		margin-right: auto;
+		width: 70%;
+		border-radius: 8px;
+		}
+	.legend { 
+		text-align: left; 
+		line-height: 18px; 
+		color: #555; 
+		} 
+	.legend i { 
+		width: 18px; 
+		height: 18px; 
+		float: left; 
+		margin-right: 8px; 
+		opacity: 0.7; 
+		}
+	</style>
+</head>
+<body>
+
+
+
+<div id='map'></div>
+
+
+
+<script type="text/javascript">
+
+	// Se define la caja máxima
+	var southWest = L.latLng(18.5, -100.5),
+		northEast = L.latLng(20, -97.5),
+		bounds = L.latLngBounds(southWest, northEast);
+
+	// Se crea el mapa
+	var map = L.map('map', {
+		center: [19.432, -99.133],
+		zoom:11,
+		animate: true,
+		//layers: [topographic,gray],
+		maxBounds: bounds,
+		maxZoom: 17,
+		minZoom: 10
+	});
+
+	L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+		maxZoom: 18,
+		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+		id: 'mapbox/light-v9',
+		tileSize: 512,
+		zoomOffset: -1
+	}).addTo(map);
+
+
+	// control que muestra información al pasar sobre una alcaldía
+	var info = L.control();
+
+	info.onAdd = function (map) {
+		this._div = L.DomUtil.create('div', 'info');
+		this.update();
+		return this._div;
+	};
+
+	info.update = function (props) {
+		this._div.innerHTML = '<h4>Casos confirmados de covid-19 por Alcaldía</h4>' +  (props ?
+			'<b>' + props.municipio_r + '</b><br />' + props.count_posit + ' casos'
+			: 'Coloca el cursor sobre una alcaldía');
+	};
+
+	info.addTo(map);
+
+
+	// asignar color a los poligonos y leyenda
+	function getColor(d) {
+		return d > 10892 ? '#ee4d5a' :
+				d > 7541  ? '#f66356' :
+				d > 6806  ? '#f97b57' :
+				d > 5099  ? '#f7945d' :
+				d > 3452   ? '#f3ad6a' :
+							'#efc47e';
+	}
+
+	// Dar estilo a los polígonos
+	function style(feature) {
+		return {
+			weight: 2,
+			opacity: 1,
+			color: 'white',
+			dashArray: '3',
+			fillOpacity: 0.7,
+			fillColor: getColor(feature.properties.count_posit)
+		};
+	}
+
+	// Función hover
+	function highlightFeature(e) {
+		var layer = e.target;
+
+		layer.setStyle({
+			weight: 5,
+			color: '#666',
+			dashArray: '',
+			fillOpacity: 0.7
+		});
+
+		if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+			layer.bringToFront();
+		}
+
+		info.update(layer.feature.properties);
+	}
+
+	var casosCovid;
+
+
+	// Reset Hover
+	function resetHighlight(e) {
+		casosCovid.resetStyle(e.target);
+		info.update();
+	}
+
+
+	// Función al dar click en un poligono
+	function zoomToFeature(e) {
+		map.fitBounds(e.target.getBounds());
+	}
+
+
+	// Agrega funciones a cada estado
+	function onEachFeature(feature, layer) {
+		layer.on({
+			mouseover: highlightFeature,
+			mouseout: resetHighlight,
+			click: zoomToFeature
+		});
+	}
+
+
+	// Carga del dataset de Agregación por Alcaldía de casos asociados a covid-19 https://datos.cdmx.gob.mx/explore/dataset/mapa-covid/export/
+	$.getJSON("data/mapa-covid.json",function(data){
+		// agregamos el dataset al mapa
+		casosCovid = L.geoJson(data, {
+			style: style,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+	});
+	
+
+
+	map.attributionControl.addAttribution('Curso de GeoWeb <a href="https://adip.cdmx.gob.mx/">ADIP</a>');
+
+
+	// Genera la leyenda
+	var legend = L.control({position: 'bottomright'});
+
+	legend.onAdd = function (map) {
+
+		var div = L.DomUtil.create('div', 'info legend'),
+			grades = [0, 5099, 6806, 7541, 10892, 18772],
+			labels = [],
+			from, to;
+
+		for (var i = 0; i < grades.length; i++) {
+			from = grades[i];
+			to = grades[i + 1];
+
+			labels.push(
+				'<i style="background:' + getColor(from + 1) + '"></i> ' +
+				from + (to ? '&ndash;' + to : '+'));
+		}
+
+		div.innerHTML = labels.join('<br>');
+		return div;
+	};
+
+	legend.addTo(map);
+
+	// Llamar datased de hospitales
+	var hospitales = $.getJSON('http://0.0.0.0:8600/geoserver/cursogeoweb/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=cursogeoweb%3Acapacidad-hospitalaria&outputFormat=application%2Fjson');
+	// Markercluster
+	var markers = L.markerClusterGroup({
+				showCoverageOnHover: false,
+				disableClusteringAtZoom: 17
+			});
+	hospitales.then(function(data) {
+		var geoJsonLayer = L.geoJson(data, {
+				onEachFeature: function (feature, layer) {
+					layer.bindPopup(feature.properties.nombre_hosp);
+				}
+			});
+		markers.addLayer(geoJsonLayer);
+		map.addLayer(markers);
+		});
+
+</script>
+
+
+
+</body>
+</html>
